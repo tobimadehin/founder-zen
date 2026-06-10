@@ -346,15 +346,7 @@
       ]
     },
     "Send Help": {
-      "main": [
-        [
-          {
-            "node": "Respond 200",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
+      "main": [[]]
     }
   },
   "settings": {
