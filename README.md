@@ -102,5 +102,4 @@ Workflows live in `workflows/templates/`. The node scripts live in `workflow-scr
 | **Total** | **~$6-12/mo** |
 
 ## License
-
-MIT. Fork it, ship it, name it yours.
+MIT. 

@@ -36,6 +36,8 @@ else
   git -C "$INSTALL_DIR" pull --ff-only
 fi
 
+chmod +x "$INSTALL_DIR/scripts/"*.sh
+
 # source shared shell utilities
 # shellcheck disable=SC1091
 source "$INSTALL_DIR/lib/shell-utils.sh"
