@@ -12,4 +12,9 @@ await dbQuery(
   "UPDATE incidents SET status = 'resolved', resolved_at = ? WHERE id = ?",
   [d.checked_at, d.incident_id]
 );
-return [{ json: d }];
+const rows = await dbQuery(
+  "SELECT first_seen_at, ack_reason FROM incidents WHERE id = ?",
+  [d.incident_id]
+);
+const { first_seen_at = d.checked_at, ack_reason = null } = rows.results?.[0] ?? {};
+return [{ json: { ...d, first_seen_at, ack_reason } }];

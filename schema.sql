@@ -9,6 +9,7 @@ CREATE TABLE IF NOT EXISTS incidents (
     last_alerted_at INTEGER,
     resolved_at     INTEGER,
     acked           INTEGER DEFAULT 0,
+    ack_reason      TEXT,
     postmortem      TEXT
 );
 

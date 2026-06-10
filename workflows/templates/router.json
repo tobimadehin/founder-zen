@@ -5,7 +5,7 @@
       "parameters": {
         "httpMethod": "POST",
         "path": "telegram",
-        "responseMode": "responseNode",
+        "responseMode": "onReceived",
         "options": {}
       },
       "id": "webhook-telegram",
@@ -60,36 +60,40 @@
           "values": [
             {
               "conditions": {
-                "options": {
-                  "caseSensitive": false
-                },
+                "options": { "caseSensitive": false },
                 "conditions": [
                   {
-                    "leftValue": "={{ $json.command }}",
-                    "rightValue": "/draft",
-                    "operator": {
-                      "type": "string",
-                      "operation": "startsWith"
-                    }
+                    "leftValue": "={{ $json.text }}",
+                    "rightValue": "/draft blog",
+                    "operator": { "type": "string", "operation": "startsWith" }
                   }
                 ]
               },
               "renameOutput": true,
-              "outputKey": "draft"
+              "outputKey": "blog"
             },
             {
               "conditions": {
-                "options": {
-                  "caseSensitive": false
-                },
+                "options": { "caseSensitive": false },
                 "conditions": [
                   {
-                    "leftValue": "={{ $json.command }}",
+                    "leftValue": "={{ $json.text }}",
+                    "rightValue": "/draft newsletter",
+                    "operator": { "type": "string", "operation": "startsWith" }
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "newsletter"
+            },
+            {
+              "conditions": {
+                "options": { "caseSensitive": false },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.text }}",
                     "rightValue": "/reddit",
-                    "operator": {
-                      "type": "string",
-                      "operation": "equals"
-                    }
+                    "operator": { "type": "string", "operation": "startsWith" }
                   }
                 ]
               },
@@ -98,17 +102,40 @@
             },
             {
               "conditions": {
-                "options": {
-                  "caseSensitive": false
-                },
+                "options": { "caseSensitive": false },
                 "conditions": [
                   {
-                    "leftValue": "={{ $json.command }}",
+                    "leftValue": "={{ $json.text }}",
+                    "rightValue": "/status",
+                    "operator": { "type": "string", "operation": "startsWith" }
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "status"
+            },
+            {
+              "conditions": {
+                "options": { "caseSensitive": false },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.text }}",
+                    "rightValue": "/ack",
+                    "operator": { "type": "string", "operation": "startsWith" }
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "ack"
+            },
+            {
+              "conditions": {
+                "options": { "caseSensitive": false },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.text }}",
                     "rightValue": "/",
-                    "operator": {
-                      "type": "string",
-                      "operation": "startsWith"
-                    }
+                    "operator": { "type": "string", "operation": "startsWith" }
                   }
                 ]
               },
@@ -130,6 +157,80 @@
     },
     {
       "parameters": {
+        "url": "=http://localhost:5678/webhook/zen-blog-draft",
+        "method": "POST",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            { "name": "chat_id", "value": "={{ $json.chat_id }}" },
+            { "name": "prompt", "value": "={{ $json.text }}" },
+            { "name": "message_id", "value": "={{ $json.message_id }}" }
+          ]
+        },
+        "options": { "timeout": 120000 }
+      },
+      "id": "call-blog-draft",
+      "name": "Call Blog Draft",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [900, 100]
+    },
+    {
+      "parameters": {
+        "url": "=http://localhost:5678/webhook/zen-newsletter-draft",
+        "method": "POST",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            { "name": "chat_id", "value": "={{ $json.chat_id }}" },
+            { "name": "prompt", "value": "={{ $json.text }}" },
+            { "name": "message_id", "value": "={{ $json.message_id }}" }
+          ]
+        },
+        "options": { "timeout": 120000 }
+      },
+      "id": "call-newsletter-draft",
+      "name": "Call Newsletter Draft",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [900, 220]
+    },
+    {
+      "parameters": {
+        "url": "=http://localhost:5678/webhook/zen-reddit-manual",
+        "method": "POST",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            { "name": "chat_id", "value": "={{ $json.chat_id }}" }
+          ]
+        },
+        "options": { "timeout": 120000 }
+      },
+      "id": "call-reddit",
+      "name": "Call Reddit",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [900, 340]
+    },
+    {
+      "parameters": { "jsCode": "__FILE__:workflow-scripts/router/status.js" },
+      "id": "get-status",
+      "name": "Get Status",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [900, 460]
+    },
+    {
+      "parameters": { "jsCode": "__FILE__:workflow-scripts/router/ack.js" },
+      "id": "ack-incidents",
+      "name": "Ack Incidents",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [900, 580]
+    },
+    {
+      "parameters": {
         "jsCode": "__FILE__:workflow-scripts/router/help-text.js"
       },
       "id": "help-text",
@@ -138,7 +239,7 @@
       "typeVersion": 2,
       "position": [
         900,
-        500
+        700
       ]
     },
     {
@@ -170,20 +271,6 @@
       "position": [
         1120,
         500
-      ]
-    },
-    {
-      "parameters": {
-        "respondWith": "text",
-        "responseBody": "OK"
-      },
-      "id": "respond-ok",
-      "name": "Respond 200",
-      "type": "n8n-nodes-base.respondToWebhook",
-      "typeVersion": 1,
-      "position": [
-        1340,
-        300
       ]
     }
   ],
@@ -223,23 +310,29 @@
     },
     "Route Command": {
       "main": [
-        [],
-        [],
-        [
-          {
-            "node": "Help Text",
-            "type": "main",
-            "index": 0
-          }
-        ],
-        [
-          {
-            "node": "Help Text",
-            "type": "main",
-            "index": 0
-          }
-        ]
+        [{ "node": "Call Blog Draft", "type": "main", "index": 0 }],
+        [{ "node": "Call Newsletter Draft", "type": "main", "index": 0 }],
+        [{ "node": "Call Reddit", "type": "main", "index": 0 }],
+        [{ "node": "Get Status", "type": "main", "index": 0 }],
+        [{ "node": "Ack Incidents", "type": "main", "index": 0 }],
+        [{ "node": "Help Text", "type": "main", "index": 0 }],
+        [{ "node": "Help Text", "type": "main", "index": 0 }]
       ]
+    },
+    "Get Status": {
+      "main": [[{ "node": "Send Help", "type": "main", "index": 0 }]]
+    },
+    "Ack Incidents": {
+      "main": [[{ "node": "Send Help", "type": "main", "index": 0 }]]
+    },
+    "Call Blog Draft": {
+      "main": [[]]
+    },
+    "Call Newsletter Draft": {
+      "main": [[]]
+    },
+    "Call Reddit": {
+      "main": [[]]
     },
     "Help Text": {
       "main": [

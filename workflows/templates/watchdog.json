@@ -435,6 +435,19 @@
         2660,
         500
       ]
+    },
+    {
+      "parameters": {
+        "jsCode": "__FILE__:workflow-scripts/watchdog/generate-postmortem.js"
+      },
+      "id": "generate-postmortem",
+      "name": "Generate Postmortem",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2880,
+        500
+      ]
     }
   ],
   "connections": {
@@ -657,6 +670,17 @@
         [
           {
             "node": "Resolve Incident",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Resolve Incident": {
+      "main": [
+        [
+          {
+            "node": "Generate Postmortem",
             "type": "main",
             "index": 0
           }
