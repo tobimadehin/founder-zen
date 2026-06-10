@@ -5,7 +5,7 @@
       "parameters": {
         "httpMethod": "POST",
         "path": "zen-blog-draft",
-        "responseMode": "lastNode",
+        "responseMode": "onReceived",
         "options": {}
       },
       "id": "blog-trigger",
@@ -16,6 +16,25 @@
         240,
         300
       ]
+    },
+    {
+      "parameters": {
+        "url": "=https://api.telegram.org/bot{{ $env.ZEN_BOT_TOKEN }}/sendMessage",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            { "name": "chat_id", "value": "={{ $json.body.chat_id || $json.chat_id }}" },
+            { "name": "text", "value": "Drafting your blog post..." },
+            { "name": "parse_mode", "value": "Markdown" }
+          ]
+        },
+        "method": "POST"
+      },
+      "id": "ack-blog",
+      "name": "Ack Blog",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [460, 140]
     },
     {
       "parameters": {
@@ -201,11 +220,8 @@
     "Blog Draft Trigger": {
       "main": [
         [
-          {
-            "node": "Extract Prompt",
-            "type": "main",
-            "index": 0
-          }
+          { "node": "Ack Blog", "type": "main", "index": 0 },
+          { "node": "Extract Prompt", "type": "main", "index": 0 }
         ]
       ]
     },

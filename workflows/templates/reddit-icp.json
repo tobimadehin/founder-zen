@@ -39,6 +39,25 @@
     },
     {
       "parameters": {
+        "url": "=https://api.telegram.org/bot{{ $env.ZEN_BOT_TOKEN }}/sendMessage",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            { "name": "chat_id", "value": "={{ $json.body.chat_id || $json.chat_id }}" },
+            { "name": "text", "value": "Running Reddit digest..." },
+            { "name": "parse_mode", "value": "Markdown" }
+          ]
+        },
+        "method": "POST"
+      },
+      "id": "ack-reddit",
+      "name": "Ack Reddit",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [460, 500]
+    },
+    {
+      "parameters": {
         "assignments": {
           "assignments": [
             {
@@ -347,11 +366,8 @@
     "Manual /reddit Trigger": {
       "main": [
         [
-          {
-            "node": "Read Reddit Config",
-            "type": "main",
-            "index": 0
-          }
+          { "node": "Ack Reddit", "type": "main", "index": 0 },
+          { "node": "Read Reddit Config", "type": "main", "index": 0 }
         ]
       ]
     },

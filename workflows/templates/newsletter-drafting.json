@@ -5,7 +5,7 @@
       "parameters": {
         "httpMethod": "POST",
         "path": "zen-newsletter-draft",
-        "responseMode": "lastNode",
+        "responseMode": "onReceived",
         "options": {}
       },
       "id": "nl-trigger",
@@ -16,6 +16,25 @@
         240,
         300
       ]
+    },
+    {
+      "parameters": {
+        "url": "=https://api.telegram.org/bot{{ $env.ZEN_BOT_TOKEN }}/sendMessage",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            { "name": "chat_id", "value": "={{ $json.body.chat_id || $json.chat_id }}" },
+            { "name": "text", "value": "Drafting your newsletter..." },
+            { "name": "parse_mode", "value": "Markdown" }
+          ]
+        },
+        "method": "POST"
+      },
+      "id": "ack-newsletter",
+      "name": "Ack Newsletter",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [460, 140]
     },
     {
       "parameters": {
@@ -174,6 +193,7 @@
     "Newsletter Draft Trigger": {
       "main": [
         [
+          { "node": "Ack Newsletter", "type": "main", "index": 0 },
           {
             "node": "Extract Topic",
             "type": "main",
