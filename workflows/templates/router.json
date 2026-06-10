@@ -95,6 +95,25 @@
               },
               "renameOutput": true,
               "outputKey": "reddit"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": false
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.command }}",
+                    "rightValue": "/",
+                    "operator": {
+                      "type": "string",
+                      "operation": "startsWith"
+                    }
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "help"
             }
           ]
         },
@@ -206,6 +225,13 @@
       "main": [
         [],
         [],
+        [
+          {
+            "node": "Help Text",
+            "type": "main",
+            "index": 0
+          }
+        ],
         [
           {
             "node": "Help Text",
