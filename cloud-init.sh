@@ -16,6 +16,12 @@ if ! command -v docker &>/dev/null; then
   systemctl enable --now docker
 fi
 
+# node.js
+if ! command -v node &>/dev/null; then
+  curl -fsSL https://deb.nodesource.com/setup_lts.x | bash -
+  apt-get install -y nodejs
+fi
+
 # rclone
 if ! command -v rclone &>/dev/null; then
   curl -fsSL https://rclone.org/install.sh | bash
