@@ -149,6 +149,15 @@ for _ in $(seq 1 30); do
 done
 curl -sf "http://localhost:5678/healthz" || { printf "n8n did not start in time\n" >&2; exit 1; }
 
+# wait for n8n API to be ready (healthz returns OK before API is fully up)
+printf "Waiting for n8n API...\n"
+for _ in $(seq 1 20); do
+  curl -sf "http://localhost:5678/api/v1/workflows" \
+    -H "X-N8N-API-KEY: $(cat "$INSTALL_DIR/.n8n_api_key" 2>/dev/null || echo '')" \
+    &>/dev/null && break
+  sleep 3
+done
+
 # init SQLite schema
 sqlite3 "$INSTALL_DIR/data/zen.db" < "$INSTALL_DIR/schema.sql"
 
