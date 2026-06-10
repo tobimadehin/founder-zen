@@ -5,8 +5,11 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(dirname "$SCRIPT_DIR")"
 CONFIG="$ROOT/zen.toml"
 
-bot_token=$(grep -A4 '^\[telegram\]' "$CONFIG" | grep 'bot_token' | head -1 | sed 's/.*= *"\(.*\)"/\1/')
-zen_slug=$(grep -A2 '^\[zen\]' "$CONFIG" | grep 'slug' | head -1 | sed 's/.*= *"\(.*\)"/\1/')
+# shellcheck disable=SC1091
+source "$ROOT/lib/shell-utils.sh"
+
+bot_token=$(parse_toml telegram bot_token "$CONFIG")
+zen_slug=$(parse_toml zen slug "$CONFIG")
 
 webhook_url="https://${zen_slug}.cfargotunnel.com/webhook/telegram"
 
@@ -17,6 +20,9 @@ response=$(curl -s -X POST \
   -H "Content-Type: application/json" \
   -d "{\"url\": \"${webhook_url}\", \"allowed_updates\": [\"message\"]}")
 
-echo "$response" | grep -q '"ok":true' \
-  && echo "Webhook registered successfully." \
-  || { echo "Failed to register webhook: $response"; exit 1; }
+if echo "$response" | grep -q '"ok":true'; then
+  echo "Webhook registered successfully."
+else
+  echo "Failed to register webhook: $response"
+  exit 1
+fi

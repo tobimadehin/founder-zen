@@ -5,7 +5,10 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(dirname "$SCRIPT_DIR")"
 CONFIG="$ROOT/zen.toml"
 
-n8n_url=$(grep -A4 '^\[n8n\]' "$CONFIG" | grep 'base_url' | head -1 | sed 's/.*= *"\(.*\)"/\1/')
+# shellcheck disable=SC1091
+source "$ROOT/lib/shell-utils.sh"
+
+n8n_url=$(parse_toml n8n base_url "$CONFIG")
 api_key_file="$ROOT/.n8n_api_key"
 
 if [ ! -f "$api_key_file" ]; then
