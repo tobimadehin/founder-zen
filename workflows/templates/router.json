@@ -203,13 +203,9 @@
       ]
     },
     "Route Command": {
-      "draft": [
-        []
-      ],
-      "reddit": [
-        []
-      ],
-      "extra": [
+      "main": [
+        [],
+        [],
         [
           {
             "node": "Help Text",
