@@ -25,7 +25,7 @@
       "parameters": {
         "httpMethod": "POST",
         "path": "zen-reddit-manual",
-        "responseMode": "lastNode",
+        "responseMode": "onReceived",
         "options": {}
       },
       "id": "manual-trigger",
@@ -134,6 +134,63 @@
     },
     {
       "parameters": {
+        "jsCode": "const items = $input.all();\nif (items.length > 0) return items;\nreturn [{ json: { empty: true } }];"
+      },
+      "id": "check-empty",
+      "name": "Check Empty",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1780, 300]
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": { "caseSensitive": false },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.empty }}",
+                    "rightValue": true,
+                    "operator": { "type": "boolean", "operation": "equals" }
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "empty"
+            }
+          ]
+        },
+        "fallbackOutput": "extra"
+      },
+      "id": "route-empty",
+      "name": "Route Empty",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3,
+      "position": [2000, 300]
+    },
+    {
+      "parameters": {
+        "url": "=https://api.telegram.org/bot{{ $env.ZEN_BOT_TOKEN }}/sendMessage",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            { "name": "chat_id", "value": "={{ $env.ZEN_CHAT_ID }}" },
+            { "name": "text", "value": "No new Reddit threads found today." },
+            { "name": "parse_mode", "value": "Markdown" }
+          ]
+        },
+        "method": "POST"
+      },
+      "id": "send-nothing-new",
+      "name": "Send Nothing New",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [2220, 140]
+    },
+    {
+      "parameters": {
         "jsCode": "__FILE__:workflow-scripts/reddit-icp/load-icp.js"
       },
       "id": "load-icp",
@@ -141,7 +198,7 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1780,
+        2440,
         300
       ]
     },
@@ -355,13 +412,18 @@
     },
     "Exclude Seen": {
       "main": [
-        [
-          {
-            "node": "Load ICP Context",
-            "type": "main",
-            "index": 0
-          }
-        ]
+        [{ "node": "Check Empty", "type": "main", "index": 0 }]
+      ]
+    },
+    "Check Empty": {
+      "main": [
+        [{ "node": "Route Empty", "type": "main", "index": 0 }]
+      ]
+    },
+    "Route Empty": {
+      "main": [
+        [{ "node": "Send Nothing New", "type": "main", "index": 0 }],
+        [{ "node": "Load ICP Context", "type": "main", "index": 0 }]
       ]
     },
     "Load ICP Context": {
