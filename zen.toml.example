@@ -1,0 +1,62 @@
+[zen]
+slug = "yourslug"   # used in tunnel hostname and ntfy topic
+
+[telegram]
+bot_token = ""
+chat_id   = ""    # your personal chat ID — only messages from this ID are processed
+
+[openrouter]
+api_key        = ""
+primary_model  = "deepseek/deepseek-v4-flash"
+fallback_model = "deepseek/deepseek-v4-flash"
+vision_model   = "google/gemini-2.5-flash"    # screenshots only
+
+[brave]
+api_key = ""
+
+[reddit]
+client_id     = ""
+client_secret = ""
+user_agent    = "script:founder-zen:1.0 (by /u/SnooHesitations6741)"
+subreddits    = ["devops", "selfhosted", "startups", "SaaS"]
+keywords      = ["deployment", "kubernetes", "docker", "ci/cd", "developer tools"]
+digest_cron   = "0 8 * * *"
+
+[s3]
+endpoint   = ""    # e.g. https://ACCOUNT_ID.r2.cloudflarestorage.com
+bucket     = ""
+access_key = ""
+secret_key = ""
+prefix     = "founder-zen/memory/"
+
+[zepto]
+api_key     = ""
+from_email  = ""    # verified sender address
+admin_email = ""    # receives incident summaries after resolution
+
+[monitor]
+interval_seconds = 30
+
+[[monitor.endpoints]]
+name          = "API"
+url           = "https://api.yourcompany.io/health"
+expect_status = 200
+
+[[monitor.endpoints]]
+name          = "Dashboard"
+url           = "https://app.yourcompany.io"
+expect_status = 200
+
+[github]
+token          = ""    # personal access token with repo write scope
+cstate_repo    = ""    # e.g. yourname/status-site
+cstate_branch  = "main"
+
+[ntfy]
+base_url = "http://localhost:8080"
+topic    = "zen-alerts"
+
+[n8n]
+base_url = "http://localhost:5678"
+user     = "admin"
+password = ""

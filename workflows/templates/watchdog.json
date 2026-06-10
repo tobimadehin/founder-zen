@@ -1,0 +1,674 @@
+{
+  "name": "zen-watchdog",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "seconds",
+              "secondsInterval": 30
+            }
+          ]
+        }
+      },
+      "id": "cron-30s",
+      "name": "Every 30 Seconds",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        240,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "1",
+              "name": "endpoints_json",
+              "value": "={{ $env.ZEN_MONITOR_ENDPOINTS }}",
+              "type": "string"
+            }
+          ]
+        },
+        "includeOtherFields": false,
+        "options": {}
+      },
+      "id": "read-config",
+      "name": "Read Config",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        460,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "__FILE__:workflow-scripts/watchdog/load-endpoints.js"
+      },
+      "id": "load-endpoints",
+      "name": "Load Endpoints",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        680,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.url }}",
+        "options": {
+          "timeout": 10000,
+          "redirect": {
+            "redirect": {
+              "followRedirects": true
+            }
+          }
+        },
+        "method": "POST"
+      },
+      "id": "http-check",
+      "name": "HTTP Check",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        680,
+        300
+      ],
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "__FILE__:workflow-scripts/watchdog/classify-result.js"
+      },
+      "id": "classify-result",
+      "name": "Classify Result",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        900,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "__FILE__:workflow-scripts/db/check-incident.js"
+      },
+      "id": "check-existing",
+      "name": "Check Existing",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1120,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "__FILE__:workflow-scripts/watchdog/decide-action.js"
+      },
+      "id": "decide-action",
+      "name": "Decide Action",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1340,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": false
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.action }}",
+                    "rightValue": "new_failure",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "new_failure"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": false
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.action }}",
+                    "rightValue": "recovery",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "recovery"
+            }
+          ]
+        },
+        "fallbackOutput": "none"
+      },
+      "id": "route-action",
+      "name": "Route Action",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3,
+      "position": [
+        1560,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "__FILE__:workflow-scripts/watchdog/build-incident.js"
+      },
+      "id": "build-incident",
+      "name": "Build Incident",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1780,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "url": "=https://api.telegram.org/bot{{ $env.ZEN_BOT_TOKEN }}/sendMessage",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "chat_id",
+              "value": "={{ $env.ZEN_CHAT_ID }}"
+            },
+            {
+              "name": "text",
+              "value": "={{ $json.alert_text }}"
+            },
+            {
+              "name": "parse_mode",
+              "value": "Markdown"
+            }
+          ]
+        },
+        "method": "POST"
+      },
+      "id": "send-telegram-down",
+      "name": "Send Telegram Down",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        2000,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "url": "={{ $env.ZEN_NTFY_URL }}/{{ $env.ZEN_NTFY_TOPIC }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Title",
+              "value": "={{ $json.endpoint_name }} is down"
+            },
+            {
+              "name": "Priority",
+              "value": "high"
+            },
+            {
+              "name": "Tags",
+              "value": "rotating_light"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "text/plain",
+        "body": "=Expected 200, got {{ $json.actual_status }}. {{ $json.endpoint_url }}",
+        "method": "POST"
+      },
+      "id": "send-ntfy-down",
+      "name": "Send ntfy Down",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        2000,
+        140
+      ]
+    },
+    {
+      "parameters": {
+        "url": "=https://api.github.com/repos/{{ $env.ZEN_GITHUB_CSTATE_REPO }}/contents/{{ $json.github_path }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.ZEN_GITHUB_TOKEN }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "body": "={\n  \"message\": \"{{ $json.github_message }}\",\n  \"content\": \"{{ $json.github_content }}\",\n  \"branch\": \"{{ $env.ZEN_GITHUB_CSTATE_BRANCH }}\"\n}",
+        "method": "POST",
+        "rawContentType": "application/json"
+      },
+      "id": "commit-incident",
+      "name": "Commit Incident",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        2000,
+        280
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "waitingForInput"
+      },
+      "id": "merge-down-sends",
+      "name": "Merge Down Sends",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [
+        2220,
+        140
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "__FILE__:workflow-scripts/db/insert-incident.js"
+      },
+      "id": "insert-incident",
+      "name": "Insert Incident",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2440,
+        140
+      ]
+    },
+    {
+      "parameters": {
+        "url": "=https://api.github.com/repos/{{ $env.ZEN_GITHUB_CSTATE_REPO }}/contents/content/incidents/{{ $json.incident_id }}.md",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.ZEN_GITHUB_TOKEN }}"
+            }
+          ]
+        },
+        "method": "POST"
+      },
+      "id": "get-incident-file",
+      "name": "Get Incident File",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        1780,
+        500
+      ],
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "__FILE__:workflow-scripts/watchdog/build-resolution.js"
+      },
+      "id": "build-resolution",
+      "name": "Build Resolution",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2000,
+        500
+      ]
+    },
+    {
+      "parameters": {
+        "url": "=https://api.telegram.org/bot{{ $env.ZEN_BOT_TOKEN }}/sendMessage",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "chat_id",
+              "value": "={{ $env.ZEN_CHAT_ID }}"
+            },
+            {
+              "name": "text",
+              "value": "={{ $json.resolve_text }}"
+            },
+            {
+              "name": "parse_mode",
+              "value": "Markdown"
+            }
+          ]
+        },
+        "method": "POST"
+      },
+      "id": "send-telegram-resolved",
+      "name": "Send Telegram Resolved",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        2220,
+        420
+      ]
+    },
+    {
+      "parameters": {
+        "url": "=https://api.github.com/repos/{{ $env.ZEN_GITHUB_CSTATE_REPO }}/contents/{{ $json.github_path }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.ZEN_GITHUB_TOKEN }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "body": "={\n  \"message\": \"{{ $json.github_message }}\",\n  \"content\": \"{{ $json.github_content }}\",\n  \"sha\": \"{{ $json.github_sha }}\",\n  \"branch\": \"{{ $env.ZEN_GITHUB_CSTATE_BRANCH }}\"\n}",
+        "method": "POST",
+        "rawContentType": "application/json"
+      },
+      "id": "update-cstate-file",
+      "name": "Update cState File",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        2220,
+        580
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "waitingForInput"
+      },
+      "id": "merge-resolved-sends",
+      "name": "Merge Resolved Sends",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [
+        2440,
+        500
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "__FILE__:workflow-scripts/db/resolve-incident.js"
+      },
+      "id": "resolve-incident",
+      "name": "Resolve Incident",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2660,
+        500
+      ]
+    }
+  ],
+  "connections": {
+    "Every 30 Seconds": {
+      "main": [
+        [
+          {
+            "node": "Read Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Config": {
+      "main": [
+        [
+          {
+            "node": "Load Endpoints",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load Endpoints": {
+      "main": [
+        [
+          {
+            "node": "HTTP Check",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Check": {
+      "main": [
+        [
+          {
+            "node": "Classify Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Classify Result": {
+      "main": [
+        [
+          {
+            "node": "Check Existing",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Existing": {
+      "main": [
+        [
+          {
+            "node": "Decide Action",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Decide Action": {
+      "main": [
+        [
+          {
+            "node": "Route Action",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Route Action": {
+      "new_failure": [
+        [
+          {
+            "node": "Build Incident",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ],
+      "recovery": [
+        [
+          {
+            "node": "Get Incident File",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ],
+      "none": [
+        []
+      ]
+    },
+    "Build Incident": {
+      "main": [
+        [
+          {
+            "node": "Send Telegram Down",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Send ntfy Down",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Commit Incident",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Telegram Down": {
+      "main": [
+        [
+          {
+            "node": "Merge Down Sends",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send ntfy Down": {
+      "main": [
+        [
+          {
+            "node": "Merge Down Sends",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Commit Incident": {
+      "main": [
+        [
+          {
+            "node": "Merge Down Sends",
+            "type": "main",
+            "index": 2
+          }
+        ]
+      ]
+    },
+    "Merge Down Sends": {
+      "main": [
+        [
+          {
+            "node": "Insert Incident",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Incident File": {
+      "main": [
+        [
+          {
+            "node": "Build Resolution",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Resolution": {
+      "main": [
+        [
+          {
+            "node": "Send Telegram Resolved",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Update cState File",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Telegram Resolved": {
+      "main": [
+        [
+          {
+            "node": "Merge Resolved Sends",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update cState File": {
+      "main": [
+        [
+          {
+            "node": "Merge Resolved Sends",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Merge Resolved Sends": {
+      "main": [
+        [
+          {
+            "node": "Resolve Incident",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [
+    "zen"
+  ]
+}

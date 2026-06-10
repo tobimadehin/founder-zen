@@ -1,0 +1,62 @@
+services:
+  n8n:
+    image: n8nio/n8n:latest
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:5678:5678"
+    volumes:
+      - n8n_data:/home/node/.n8n
+      - ./memory:/opt/memory:ro
+      - ./data/zen.db:/opt/zen.db
+      - ./lib:/opt/zen/lib:ro
+    env_file: .env
+    environment:
+      - N8N_BASIC_AUTH_ACTIVE=true
+      - N8N_BASIC_AUTH_USER=${N8N_USER:-admin}
+      - N8N_BASIC_AUTH_PASSWORD=${N8N_PASSWORD}
+      - WEBHOOK_URL=${WEBHOOK_URL}
+      - N8N_ENCRYPTION_KEY=${N8N_ENCRYPTION_KEY}
+      - N8N_LOG_LEVEL=warn
+      - EXECUTIONS_DATA_PRUNE=true
+      - EXECUTIONS_DATA_MAX_AGE=72
+      - N8N_BLOCK_ENV_ACCESS_IN_NODE=false
+      - NODE_FUNCTION_ALLOW_BUILTIN=http,https,fs,path
+
+  trafilatura:
+    build: ./services/trafilatura
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8091:8081"
+    volumes:
+      - ./data/zen.db:/opt/zen.db
+    environment:
+      - DB_PATH=/opt/zen.db
+
+  reader:
+    build: ./services/reader
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:3000:3000"
+
+  ntfy:
+    image: binwiederhier/ntfy:latest
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8080:80"
+    volumes:
+      - ntfy_data:/var/cache/ntfy
+    command: serve --cache-file /var/cache/ntfy/cache.db
+
+  playwright:
+    image: mcr.microsoft.com/playwright:v1.44.0-jammy
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:3001:3001"
+    command: ["npx", "playwright", "run-server", "--port", "3001", "--host", "0.0.0.0"]
+    shm_size: "1gb"
+    volumes:
+      - ./playwright-templates:/opt/templates:ro
+
+volumes:
+  n8n_data:
+  ntfy_data:

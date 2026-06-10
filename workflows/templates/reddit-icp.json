@@ -1,0 +1,463 @@
+{
+  "name": "zen-reddit-icp",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 8 * * *"
+            }
+          ]
+        }
+      },
+      "id": "cron-8am",
+      "name": "Daily 8am",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        240,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "zen-reddit-manual",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "id": "manual-trigger",
+      "name": "Manual /reddit Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [
+        240,
+        500
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "1",
+              "name": "subreddits_csv",
+              "value": "={{ $env.ZEN_REDDIT_SUBREDDITS }}",
+              "type": "string"
+            },
+            {
+              "id": "2",
+              "name": "keywords_csv",
+              "value": "={{ $env.ZEN_REDDIT_KEYWORDS }}",
+              "type": "string"
+            }
+          ]
+        },
+        "includeOtherFields": false,
+        "options": {}
+      },
+      "id": "read-reddit-config",
+      "name": "Read Reddit Config",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        460,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "__FILE__:workflow-scripts/reddit-icp/prepare-subreddits.js"
+      },
+      "id": "prepare-subreddits",
+      "name": "Prepare Subreddits",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        680,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "__FILE__:workflow-scripts/reddit-icp/fetch-subreddit.js"
+      },
+      "id": "fetch-subreddit",
+      "name": "Fetch Subreddit Posts",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        900,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "__FILE__:workflow-scripts/reddit-icp/filter-posts.js"
+      },
+      "id": "filter-posts",
+      "name": "Filter by Keywords",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1120,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "__FILE__:workflow-scripts/db/check-seen.js"
+      },
+      "id": "check-seen",
+      "name": "Check Already Seen",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1340,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "__FILE__:workflow-scripts/reddit-icp/exclude-seen.js"
+      },
+      "id": "exclude-seen",
+      "name": "Exclude Seen",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1560,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "__FILE__:workflow-scripts/reddit-icp/load-icp.js"
+      },
+      "id": "load-icp",
+      "name": "Load ICP Context",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1780,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "__FILE__:workflow-scripts/reddit-icp/pass1a-domain.js"
+      },
+      "id": "pass1a-domain",
+      "name": "Pass 1A: Domain Relevance",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2000,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const https = require('https');\nconst apiKey = $env.ZEN_OPENROUTER_KEY;\nconst model = $env.ZEN_PRIMARY_MODEL;\n\nconst allPosts = $('Load ICP Context').all().map(r => r.json);\nconst pass1aItems = $input.all();\n\nconst callOpenRouter = (post) => new Promise((resolve, reject) => {\n  const prompt = `Subreddit: r/${post.subreddit}\\nTitle: ${post.title}\\nSnippet: ${(post.snippet || '').slice(0, 300)}\\n\\nScore 1-10 for content quality: Is this a specific, substantive question or discussion (not vague, has actionable context)? Return json: { \"thread_id\": \"${post.thread_id}\", \"reasoning\": \"...\", \"engagement_quality_score\": N }`;\n  const payload = JSON.stringify({\n    model,\n    temperature: 0,\n    response_format: { type: 'json_object' },\n    messages: [{ role: 'user', content: prompt }],\n  });\n  const req = https.request({\n    hostname: 'openrouter.ai',\n    path: '/api/v1/chat/completions',\n    method: 'POST',\n    headers: {\n      'Authorization': `Bearer ${apiKey}`,\n      'Content-Type': 'application/json',\n      'Content-Length': Buffer.byteLength(payload),\n    },\n  }, res => {\n    let d = '';\n    res.on('data', c => d += c);\n    res.on('end', () => {\n      try { resolve(JSON.parse(d)); }\n      catch (e) { reject(new Error('Invalid JSON: ' + d.slice(0, 200))); }\n    });\n  });\n  req.on('error', reject);\n  req.write(payload);\n  req.end();\n});\n\nconst results = [];\nfor (const item of pass1aItems) {\n  // Extract thread_id from Pass 1A domain score\n  const content = JSON.parse(item.json.choices[0].message.content);\n  const thread_id = content.thread_id;\n  const post = allPosts.find(p => p.thread_id === thread_id) || allPosts[0];\n  const apiResult = await callOpenRouter(post);\n  results.push({ json: apiResult });\n}\n\nreturn results;\n"
+      },
+      "id": "pass1b-engagement",
+      "name": "Pass 1B: Engagement Score",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2000,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "__FILE__:workflow-scripts/reddit-icp/merge-scores.js"
+      },
+      "id": "merge-scores",
+      "name": "Merge & Rank Scores",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2220,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const https = require('https');\nconst apiKey = $env.ZEN_OPENROUTER_KEY;\nconst model = $env.ZEN_PRIMARY_MODEL;\n\nconst { threads, total_scanned, total_qualified } = $input.first().json;\n\nconst prompt = `Write a 1-sentence \"why this matters\" for each thread below from the perspective of a developer evaluating deployment platforms. Return json: { \"digest_date\": \"today\", \"threads\": [{ \"rank\": N, \"title\": \"...\", \"url\": \"...\", \"subreddit\": \"...\", \"combined_score\": N, \"why_this_matters\": \"...\" }], \"total_scanned\": ${total_scanned}, \"total_qualified\": ${total_qualified} }\\n\\nThreads:\\n${JSON.stringify(threads, null, 2)}`;\n\nconst payload = JSON.stringify({\n  model,\n  temperature: 1.0,\n  response_format: { type: 'json_object' },\n  messages: [{ role: 'user', content: prompt }],\n});\n\nconst result = await new Promise((resolve, reject) => {\n  const req = https.request({\n    hostname: 'openrouter.ai',\n    path: '/api/v1/chat/completions',\n    method: 'POST',\n    headers: {\n      'Authorization': `Bearer ${apiKey}`,\n      'Content-Type': 'application/json',\n      'Content-Length': Buffer.byteLength(payload),\n    },\n  }, res => {\n    let d = '';\n    res.on('data', c => d += c);\n    res.on('end', () => {\n      try { resolve(JSON.parse(d)); }\n      catch (e) { reject(new Error('Invalid JSON: ' + d.slice(0, 300))); }\n    });\n  });\n  req.on('error', reject);\n  req.write(payload);\n  req.end();\n});\n\nreturn [{ json: result }];\n"
+      },
+      "id": "pass2-digest",
+      "name": "Pass 2: Digest Builder",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2440,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "__FILE__:workflow-scripts/reddit-icp/format-digest.js"
+      },
+      "id": "format-digest",
+      "name": "Format Digest",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2660,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "url": "=https://api.telegram.org/bot{{ $env.ZEN_BOT_TOKEN }}/sendMessage",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "chat_id",
+              "value": "={{ $env.ZEN_CHAT_ID }}"
+            },
+            {
+              "name": "text",
+              "value": "={{ $json.text }}"
+            },
+            {
+              "name": "parse_mode",
+              "value": "Markdown"
+            },
+            {
+              "name": "disable_web_page_preview",
+              "value": "true"
+            }
+          ]
+        },
+        "method": "POST"
+      },
+      "id": "send-digest",
+      "name": "Send Digest",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        2880,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "__FILE__:workflow-scripts/reddit-icp/prepare-seen.js"
+      },
+      "id": "prepare-seen",
+      "name": "Prepare Seen Records",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3100,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "__FILE__:workflow-scripts/db/mark-seen.js"
+      },
+      "id": "mark-seen",
+      "name": "Mark Threads Seen",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3320,
+        300
+      ]
+    }
+  ],
+  "connections": {
+    "Daily 8am": {
+      "main": [
+        [
+          {
+            "node": "Read Reddit Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Manual /reddit Trigger": {
+      "main": [
+        [
+          {
+            "node": "Read Reddit Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Reddit Config": {
+      "main": [
+        [
+          {
+            "node": "Prepare Subreddits",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Subreddits": {
+      "main": [
+        [
+          {
+            "node": "Fetch Subreddit Posts",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Subreddit Posts": {
+      "main": [
+        [
+          {
+            "node": "Filter by Keywords",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter by Keywords": {
+      "main": [
+        [
+          {
+            "node": "Check Already Seen",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Already Seen": {
+      "main": [
+        [
+          {
+            "node": "Exclude Seen",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Exclude Seen": {
+      "main": [
+        [
+          {
+            "node": "Load ICP Context",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load ICP Context": {
+      "main": [
+        [
+          {
+            "node": "Pass 1A: Domain Relevance",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pass 1A: Domain Relevance": {
+      "main": [
+        [
+          {
+            "node": "Pass 1B: Engagement Score",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pass 1B: Engagement Score": {
+      "main": [
+        [
+          {
+            "node": "Merge & Rank Scores",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge & Rank Scores": {
+      "main": [
+        [
+          {
+            "node": "Pass 2: Digest Builder",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pass 2: Digest Builder": {
+      "main": [
+        [
+          {
+            "node": "Format Digest",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Digest": {
+      "main": [
+        [
+          {
+            "node": "Send Digest",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Digest": {
+      "main": [
+        [
+          {
+            "node": "Prepare Seen Records",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Seen Records": {
+      "main": [
+        [
+          {
+            "node": "Mark Threads Seen",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [
+    "zen"
+  ]
+}

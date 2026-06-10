@@ -1,0 +1,292 @@
+{
+  "name": "zen-newsletter-drafting",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "zen-newsletter-draft",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "id": "nl-trigger",
+      "name": "Newsletter Draft Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [
+        240,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "__FILE__:workflow-scripts/newsletter-drafting/extract-topic.js"
+      },
+      "id": "extract-topic",
+      "name": "Extract Topic",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        460,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "__FILE__:workflow-scripts/newsletter-drafting/load-memory.js"
+      },
+      "id": "load-memory",
+      "name": "Load ICP + Tone",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        680,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const https = require('https');\nconst apiKey = $env.ZEN_OPENROUTER_KEY;\nconst model = $env.ZEN_PRIMARY_MODEL;\nconst { icp, topic } = $input.first().json;\n\nconst payload = JSON.stringify({\n  model,\n  temperature: 1.5,\n  response_format: { type: 'json_object' },\n  messages: [{ role: 'user', content: `ICP:\\n${icp}\\n\\nTopic: ${topic}\\n\\nGenerate 3 subject line options with preview text. Return json: { \"options\": [{ \"subject_line\": \"...\", \"preview\": \"...\", \"reasoning\": \"...\" }] }` }],\n});\n\nconst result = await new Promise((resolve, reject) => {\n  const req = https.request({\n    hostname: 'openrouter.ai', path: '/api/v1/chat/completions', method: 'POST',\n    headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(payload) },\n  }, res => {\n    let d = ''; res.on('data', c => d += c);\n    res.on('end', () => { try { resolve(JSON.parse(d)); } catch (e) { reject(new Error('Invalid JSON: ' + d.slice(0, 200))); } });\n  });\n  req.on('error', reject); req.write(payload); req.end();\n});\n\nreturn [{ json: result }];\n"
+      },
+      "id": "pass1a-subjects",
+      "name": "Pass 1A: Subject Lines",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        900,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const https = require('https');\nconst apiKey = $env.ZEN_OPENROUTER_KEY;\nconst model = $env.ZEN_PRIMARY_MODEL;\nconst { tone, topic } = $('Load ICP + Tone').first().json;\n\nconst payload = JSON.stringify({\n  model,\n  temperature: 1.2,\n  response_format: { type: 'json_object' },\n  messages: [{ role: 'user', content: `Tone:\\n${tone}\\n\\nTopic: ${topic}\\n\\nBuild newsletter structure. Return json: { \"opening_hook\": \"...\", \"sections\": [{ \"title\": \"...\", \"talking_points\": [] }], \"why_this_matters\": \"...\" }` }],\n});\n\nconst result = await new Promise((resolve, reject) => {\n  const req = https.request({\n    hostname: 'openrouter.ai', path: '/api/v1/chat/completions', method: 'POST',\n    headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(payload) },\n  }, res => {\n    let d = ''; res.on('data', c => d += c);\n    res.on('end', () => { try { resolve(JSON.parse(d)); } catch (e) { reject(new Error('Invalid JSON: ' + d.slice(0, 200))); } });\n  });\n  req.on('error', reject); req.write(payload); req.end();\n});\n\nreturn [{ json: result }];\n"
+      },
+      "id": "pass1b-outline",
+      "name": "Pass 1B: Content Outline",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        900,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "__FILE__:workflow-scripts/newsletter-drafting/merge-pass1.js"
+      },
+      "id": "merge-1a-1b",
+      "name": "Merge Pass 1 Outputs",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1120,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const https = require('https');\nconst apiKey = $env.ZEN_OPENROUTER_KEY;\nconst model = $env.ZEN_PRIMARY_MODEL;\nconst { tone, subjects, outline, topic } = $input.first().json;\n\nconst payload = JSON.stringify({\n  model,\n  temperature: 1.2,\n  response_format: { type: 'json_object' },\n  messages: [{ role: 'user', content: `Tone:\\n${tone}\\n\\nSubject options: ${JSON.stringify(subjects?.options || subjects)}\\nOutline: ${JSON.stringify(outline)}\\nTopic: ${topic}\\n\\nSelect the best subject line. Expand into full email copy (250-400 words). Return json: { \"subject_line\": \"...\", \"preview\": \"...\", \"opening_paragraph\": \"...\", \"body_sections\": [{ \"title\": \"...\", \"body\": \"...\" }], \"cta\": \"...\", \"signature\": \"...\" }` }],\n});\n\nconst result = await new Promise((resolve, reject) => {\n  const req = https.request({\n    hostname: 'openrouter.ai', path: '/api/v1/chat/completions', method: 'POST',\n    headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(payload) },\n  }, res => {\n    let d = ''; res.on('data', c => d += c);\n    res.on('end', () => { try { resolve(JSON.parse(d)); } catch (e) { reject(new Error('Invalid JSON: ' + d.slice(0, 200))); } });\n  });\n  req.on('error', reject); req.write(payload); req.end();\n});\n\nreturn [{ json: result }];\n"
+      },
+      "id": "pass2-synthesizer",
+      "name": "Pass 2: Synthesizer",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1340,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const https = require('https');\nconst apiKey = $env.ZEN_OPENROUTER_KEY;\nconst model = $env.ZEN_PRIMARY_MODEL;\n\nconst draftContent = $('Pass 2: Synthesizer').first().json.choices[0].message.content;\n\nconst payload = JSON.stringify({\n  model,\n  temperature: 0,\n  response_format: { type: 'json_object' },\n  messages: [{ role: 'user', content: `Score this newsletter draft 1-10 on: ICP relevance, completeness, tone match. Be strict - 8+ means send-ready. Return json: { \"score\": N, \"flags\": [] }\\n\\nDraft:\\n${draftContent}` }],\n});\n\nconst result = await new Promise((resolve, reject) => {\n  const req = https.request({\n    hostname: 'openrouter.ai', path: '/api/v1/chat/completions', method: 'POST',\n    headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(payload) },\n  }, res => {\n    let d = ''; res.on('data', c => d += c);\n    res.on('end', () => { try { resolve(JSON.parse(d)); } catch (e) { reject(new Error('Invalid JSON: ' + d.slice(0, 200))); } });\n  });\n  req.on('error', reject); req.write(payload); req.end();\n});\n\nreturn [{ json: result }];\n"
+      },
+      "id": "llm-judge",
+      "name": "LLM Judge",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1560,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "__FILE__:workflow-scripts/newsletter-drafting/format-final.js"
+      },
+      "id": "format-final",
+      "name": "Format Final",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1780,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "url": "=https://api.telegram.org/bot{{ $env.ZEN_BOT_TOKEN }}/sendMessage",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "chat_id",
+              "value": "={{ $env.ZEN_CHAT_ID }}"
+            },
+            {
+              "name": "text",
+              "value": "={{ $json.text }}"
+            },
+            {
+              "name": "parse_mode",
+              "value": "Markdown"
+            }
+          ]
+        },
+        "method": "POST"
+      },
+      "id": "send-newsletter",
+      "name": "Send Newsletter Draft",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        2000,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "__FILE__:workflow-scripts/db/store-newsletter-draft.js"
+      },
+      "id": "save-draft",
+      "name": "Save to DB",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2220,
+        300
+      ]
+    }
+  ],
+  "connections": {
+    "Newsletter Draft Trigger": {
+      "main": [
+        [
+          {
+            "node": "Extract Topic",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Topic": {
+      "main": [
+        [
+          {
+            "node": "Load ICP + Tone",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load ICP + Tone": {
+      "main": [
+        [
+          {
+            "node": "Pass 1A: Subject Lines",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pass 1A: Subject Lines": {
+      "main": [
+        [
+          {
+            "node": "Pass 1B: Content Outline",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pass 1B: Content Outline": {
+      "main": [
+        [
+          {
+            "node": "Merge Pass 1 Outputs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge Pass 1 Outputs": {
+      "main": [
+        [
+          {
+            "node": "Pass 2: Synthesizer",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pass 2: Synthesizer": {
+      "main": [
+        [
+          {
+            "node": "LLM Judge",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "LLM Judge": {
+      "main": [
+        [
+          {
+            "node": "Format Final",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Final": {
+      "main": [
+        [
+          {
+            "node": "Send Newsletter Draft",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Newsletter Draft": {
+      "main": [
+        [
+          {
+            "node": "Save to DB",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [
+    "zen"
+  ]
+}
