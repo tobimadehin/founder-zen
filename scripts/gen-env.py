@@ -42,8 +42,7 @@ lines = [
     f"N8N_USER={c['n8n']['user']}",
     f"N8N_PASSWORD={c['n8n']['password']}",
     f"N8N_ENCRYPTION_KEY={enc_key}",
-    # localhost for local dev — no Cloudflare Tunnel needed
-    "WEBHOOK_URL=http://localhost:5678",
+    f"WEBHOOK_URL=https://{c['zen']['domain']}",
     f"ZEN_BOT_TOKEN={c['telegram']['bot_token']}",
     f"ZEN_CHAT_ID={c['telegram']['chat_id']}",
     f"ZEN_OPENROUTER_KEY={c['openrouter']['api_key']}",

@@ -9,9 +9,9 @@ CONFIG="$ROOT/zen.toml"
 source "$ROOT/lib/shell-utils.sh"
 
 bot_token=$(parse_toml telegram bot_token "$CONFIG")
-zen_slug=$(parse_toml zen slug "$CONFIG")
+domain=$(parse_toml zen domain "$CONFIG")
 
-webhook_url="https://${zen_slug}.cfargotunnel.com/webhook/telegram"
+webhook_url="https://${domain}/webhook/telegram"
 
 echo "Registering Telegram webhook: $webhook_url"
 
