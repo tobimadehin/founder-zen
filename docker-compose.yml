@@ -20,6 +20,7 @@ services:
       - EXECUTIONS_DATA_PRUNE=true
       - EXECUTIONS_DATA_MAX_AGE=72
       - N8N_BLOCK_ENV_ACCESS_IN_NODE=false
+      - N8N_SECURE_COOKIE=false
       - NODE_FUNCTION_ALLOW_BUILTIN=http,https,fs,path
 
   trafilatura:
